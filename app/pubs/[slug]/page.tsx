@@ -4,15 +4,16 @@ import { createClient } from '@/lib/supabase-server'
 export const revalidate = 60
 
 interface Props {
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 export async function generateMetadata({ params }: Props) {
+  const { slug } = await params
   const supabase = await createClient()
   const { data: pub } = await supabase
     .from('pubs')
     .select('name, area')
-    .eq('slug', params.slug)
+    .eq('slug', slug)
     .single()
   if (!pub) return { title: 'Not found' }
   return { title: `${pub.name} — Worth a Pint` }
@@ -30,12 +31,13 @@ function Stars({ value }: { value: number }) {
 }
 
 export default async function PubPage({ params }: Props) {
+  const { slug } = await params
   const supabase = await createClient()
 
   const { data: pub } = await supabase
     .from('pubs')
     .select('*')
-    .eq('slug', params.slug)
+    .eq('slug', slug)
     .single()
 
   if (!pub) notFound()
