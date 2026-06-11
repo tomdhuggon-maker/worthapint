@@ -1,16 +1,54 @@
-export default function Home() {
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase-server'
+
+export const revalidate = 60
+
+export default async function HomePage() {
+  const supabase = await createClient()
+
+  const { data: pubs } = await supabase
+    .from('pubs')
+    .select(`
+      id, name, area, slug,
+      reviews (
+        id, rating_beer, rating_atmosphere, rating_value, published_at
+      )
+    `)
+
+  const sorted = (pubs ?? [])
+    .filter(p => p.reviews.length > 0)
+    .sort((a, b) => {
+      const aDate = Math.max(...a.reviews.map((r: any) => new Date(r.published_at).getTime()))
+      const bDate = Math.max(...b.reviews.map((r: any) => new Date(r.published_at).getTime()))
+      return bDate - aDate
+    })
+
+  function avgRating(reviews: any[]) {
+    const total = reviews.reduce((s: number, r: any) => s + r.rating_beer + r.rating_atmosphere + r.rating_value, 0)
+    return (total / (reviews.length * 3)).toFixed(1)
+  }
+
   return (
-    <main className="min-h-screen bg-amber-50">
-      <div className="max-w-3xl mx-auto px-6 py-16">
-        <h1 className="text-5xl font-bold text-amber-900 mb-4">
-          Worth a Pint
-        </h1>
-        <p className="text-xl text-amber-700 mb-8">
-          Honest reviews of London's best pubs — by people who actually drink in them.
-        </p>
-        <div className="border-t border-amber-200 pt-8">
-          <p className="text-amber-600">Reviews coming soon.</p>
-        </div>
+    <main className="page-wrap">
+      <header className="site-header">
+        <p className="site-eyebrow">London pub reviews</p>
+        <h1 className="site-title">Worth a Pint</h1>
+        <p className="site-strapline">An honest guide to London's best pubs.</p>
+      </header>
+
+      <div className="pub-list">
+        {sorted.map(pub => (
+          <Link key={pub.id} href={`/pubs/${pub.slug}`} className="pub-row">
+            <div className="pub-row-left">
+              <span className="pub-row-name">{pub.name}</span>
+              <span className="pub-row-meta">{pub.area} · {pub.reviews.length} review{pub.reviews.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="pub-row-right">
+              <span className="pub-row-rating">{avgRating(pub.reviews)}</span>
+              <span className="pub-row-rating-label">avg</span>
+            </div>
+          </Link>
+        ))}
       </div>
     </main>
   )
