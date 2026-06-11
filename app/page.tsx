@@ -33,7 +33,7 @@ export default async function HomePage() {
       <header className="site-header">
         <p className="site-eyebrow">London pub reviews</p>
         <h1 className="site-title">Worth a Pint</h1>
-        <p className="site-strapline">An honest guide to London's best pubs.</p>
+        <p className="site-strapline">Celebrating the best pints that London has to offer.</p>
       </header>
 
       <div className="pub-list">
