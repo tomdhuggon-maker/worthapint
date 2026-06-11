@@ -1,27 +1,50 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 
-export default function NewReview() {
+export default function EditReview() {
   const router = useRouter()
+  const { id } = useParams()
   const supabase = createClient()
   const [pubs, setPubs] = useState<{ id: number; name: string }[]>([])
   const [form, setForm] = useState({
     pub_id: '', title: '', body: '', author: '',
     rating_beer: '3', rating_atmosphere: '3', rating_value: '3',
-    published_at: new Date().toISOString().slice(0, 16)
+    published_at: ''
   })
-  const [images, setImages] = useState<File[]>([])
+  const [existingImages, setExistingImages] = useState<{ id: number; url: string }[]>([])
+  const [newImages, setNewImages] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    supabase.from('pubs').select('id, name').order('name').then(({ data }) => {
-      if (data) setPubs(data)
-    })
-  }, [])
+    async function load() {
+      const [{ data: pubsData }, { data: review }, { data: images }] = await Promise.all([
+        supabase.from('pubs').select('id, name').order('name'),
+        supabase.from('reviews').select('*').eq('id', id).single(),
+        supabase.from('review_images').select('*').eq('review_id', id).order('position')
+      ])
+      if (pubsData) setPubs(pubsData)
+      if (review) setForm({
+        pub_id: String(review.pub_id),
+        title: review.title ?? '',
+        body: review.body ?? '',
+        author: review.author ?? '',
+        rating_beer: String(review.rating_beer),
+        rating_atmosphere: String(review.rating_atmosphere),
+        rating_value: String(review.rating_value),
+        published_at: review.published_at
+          ? new Date(review.published_at).toISOString().slice(0, 16)
+          : ''
+      })
+      if (images) setExistingImages(images)
+      setLoading(false)
+    }
+    load()
+  }, [id])
 
   const set = (field: string) => (
     e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement | HTMLInputElement>
@@ -29,24 +52,30 @@ export default function NewReview() {
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
-    setImages(prev => [...prev, ...files])
-    const newPreviews = files.map(f => URL.createObjectURL(f))
-    setPreviews(prev => [...prev, ...newPreviews])
+    setNewImages(prev => [...prev, ...files])
+    setPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))])
   }
 
-  function removeImage(index: number) {
-    setImages(prev => prev.filter((_, i) => i !== index))
+  function removeNewImage(index: number) {
+    setNewImages(prev => prev.filter((_, i) => i !== index))
     setPreviews(prev => prev.filter((_, i) => i !== index))
   }
 
-  async function uploadImages(reviewId: number) {
+  async function removeExistingImage(imageId: number, url: string) {
+    // Delete from storage
+    const path = url.split('/review-images/')[1]
+    await supabase.storage.from('review-images').remove([path])
+    // Delete from database
+    await supabase.from('review_images').delete().eq('id', imageId)
+    setExistingImages(prev => prev.filter(img => img.id !== imageId))
+  }
+
+  async function uploadNewImages(reviewId: number) {
     const urls: string[] = []
-    for (const file of images) {
+    for (const file of newImages) {
       const ext = file.name.split('.').pop()
       const path = `${reviewId}/${Date.now()}.${ext}`
-      const { error } = await supabase.storage
-        .from('review-images')
-        .upload(path, file)
+      const { error } = await supabase.storage.from('review-images').upload(path, file)
       if (error) throw error
       const { data } = supabase.storage.from('review-images').getPublicUrl(path)
       urls.push(data.publicUrl)
@@ -54,38 +83,36 @@ export default function NewReview() {
     return urls
   }
 
-  async function handleSubmit() {
+  async function handleSave() {
     if (!form.pub_id) return setError('Please select a pub')
     if (!form.title) return setError('Title is required')
-    setLoading(true)
+    setSaving(true)
     setError('')
 
-    // Insert review
-    const { data: review, error: reviewError } = await supabase
+    const { error: updateError } = await supabase
       .from('reviews')
-      .insert([{
+      .update({
         ...form,
         pub_id: parseInt(form.pub_id),
         rating_beer: parseInt(form.rating_beer),
         rating_atmosphere: parseInt(form.rating_atmosphere),
         rating_value: parseInt(form.rating_value),
         published_at: new Date(form.published_at).toISOString()
-      }])
-      .select()
-      .single()
+      })
+      .eq('id', id)
 
-    if (reviewError) { setError(reviewError.message); setLoading(false); return }
+    if (updateError) { setError(updateError.message); setSaving(false); return }
 
-    // Upload images
-    if (images.length > 0) {
+    if (newImages.length > 0) {
       try {
-        const urls = await uploadImages(review.id)
+        const urls = await uploadNewImages(Number(id))
+        const position = existingImages.length
         await supabase.from('review_images').insert(
-          urls.map((url, position) => ({ review_id: review.id, url, position }))
+          urls.map((url, i) => ({ review_id: Number(id), url, position: position + i }))
         )
       } catch (err: any) {
         setError('Review saved but image upload failed: ' + err.message)
-        setLoading(false)
+        setSaving(false)
         return
       }
     }
@@ -93,9 +120,11 @@ export default function NewReview() {
     router.push('/admin')
   }
 
+  if (loading) return <p>Loading…</p>
+
   return (
     <div style={{ maxWidth: 600 }}>
-      <h1>Add a Review</h1>
+      <h1>Edit Review</h1>
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       <Field label="Pub *">
@@ -133,6 +162,24 @@ export default function NewReview() {
       </Field>
 
       <Field label="Images">
+        {existingImages.length > 0 && (
+          <div style={{ marginBottom: '1rem' }}>
+            <p style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#666' }}>Existing images:</p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {existingImages.map(img => (
+                <div key={img.id} style={{ position: 'relative' }}>
+                  <img src={img.url} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4 }} />
+                  <button onClick={() => removeExistingImage(img.id, img.url)} style={{
+                    position: 'absolute', top: 2, right: 2, background: 'red', color: 'white',
+                    border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer',
+                    fontSize: 12, lineHeight: '20px', textAlign: 'center', padding: 0
+                  }}>×</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <p style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#666' }}>Add new images:</p>
         <input type="file" accept="image/*" multiple onChange={handleImageChange}
           style={{ marginBottom: '1rem' }} />
         {previews.length > 0 && (
@@ -140,7 +187,7 @@ export default function NewReview() {
             {previews.map((src, i) => (
               <div key={i} style={{ position: 'relative' }}>
                 <img src={src} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4 }} />
-                <button onClick={() => removeImage(i)} style={{
+                <button onClick={() => removeNewImage(i)} style={{
                   position: 'absolute', top: 2, right: 2, background: 'red', color: 'white',
                   border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer',
                   fontSize: 12, lineHeight: '20px', textAlign: 'center', padding: 0
@@ -151,8 +198,8 @@ export default function NewReview() {
         )}
       </Field>
 
-      <button onClick={handleSubmit} disabled={loading} style={btn}>
-        {loading ? 'Saving…' : 'Save Review'}
+      <button onClick={handleSave} disabled={saving} style={btn}>
+        {saving ? 'Saving…' : 'Save Changes'}
       </button>
     </div>
   )
