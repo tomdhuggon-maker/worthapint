@@ -5,15 +5,17 @@ export const revalidate = 60
 
 export default async function HomePage() {
   const supabase = await createClient()
+  const now = new Date().toISOString()
 
   const { data: pubs } = await supabase
     .from('pubs')
     .select(`
       id, name, area, slug,
-      reviews (
+      reviews!inner (
         id, rating_beer, rating_atmosphere, rating_value, published_at
       )
     `)
+    .lte('reviews.published_at', now)
 
   const sorted = (pubs ?? [])
     .filter(p => p.reviews.length > 0)

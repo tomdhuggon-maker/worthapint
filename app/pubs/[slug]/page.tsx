@@ -46,7 +46,7 @@ export default async function PubPage({ params }: Props) {
     .from('reviews')
     .select('*, review_images ( url, position )')
     .eq('pub_id', pub.id)
-    .not('published_at', 'is', null)
+    .lte('published_at', new Date().toISOString())
     .order('published_at', { ascending: false })
 
   const allReviews = reviews ?? []
