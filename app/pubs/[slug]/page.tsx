@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
+import Image from 'next/image'
+import Link from 'next/link'
 
 export const revalidate = 60
 
@@ -57,7 +59,7 @@ export default async function PubPage({ params }: Props) {
 
   return (
     <main className="page-wrap">
-      <a href="/" className="back-link">← All pubs</a>
+      <Link href="/" className="back-link">← All pubs</Link>
 
       <header className="pub-header">
         <p className="pub-area">{pub.area}</p>
@@ -114,8 +116,16 @@ export default async function PubPage({ params }: Props) {
               </div>
               {images.length > 0 && (
                 <div className="review-images">
-                  {images.map((img, i) => (
-                    <img key={i} src={img.url} alt={`Photo from ${review.title}`} className="review-img" />
+                  {images.map(img => (
+                    <Image
+                      key={img.url}
+                      src={img.url}
+                      alt={`Photo from ${review.title}`}
+                      width={260}
+                      height={190}
+                      sizes="130px"
+                      className="review-img"
+                    />
                   ))}
                 </div>
               )}

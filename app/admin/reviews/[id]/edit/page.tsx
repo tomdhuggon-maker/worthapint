@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase-client'
 export default function EditReview() {
   const router = useRouter()
   const { id } = useParams()
-  const supabase = createClient()
+  const [supabase] = useState(createClient)
   const [pubs, setPubs] = useState<{ id: number; name: string }[]>([])
   const [form, setForm] = useState({
     pub_id: '', title: '', body: '', author: '',
@@ -44,7 +44,7 @@ export default function EditReview() {
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [id, supabase])
 
   const set = (field: string) => (
     e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement | HTMLInputElement>
@@ -108,8 +108,9 @@ export default function EditReview() {
         await supabase.from('review_images').insert(
           urls.map((url, i) => ({ review_id: Number(id), url, position: position + i }))
         )
-      } catch (err: any) {
-        setError('Review saved but image upload failed: ' + err.message)
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        setError('Review saved but image upload failed: ' + message)
         setSaving(false)
         return
       }
@@ -166,8 +167,10 @@ export default function EditReview() {
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               {existingImages.map(img => (
                 <div key={img.id} style={{ position: 'relative' }}>
-                  <img src={img.url} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4 }} />
-                  <button onClick={() => removeExistingImage(img.id, img.url)} style={{
+                  {/* Admin thumbnails are deliberately served directly from storage. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt="Existing review image" style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4 }} />
+                  <button type="button" aria-label="Remove existing review image" onClick={() => removeExistingImage(img.id, img.url)} style={{
                     position: 'absolute', top: 2, right: 2, background: 'red', color: 'white',
                     border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer',
                     fontSize: 12, lineHeight: '20px', textAlign: 'center', padding: 0
@@ -184,8 +187,10 @@ export default function EditReview() {
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {previews.map((src, i) => (
               <div key={i} style={{ position: 'relative' }}>
-                <img src={src} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4 }} />
-                <button onClick={() => removeNewImage(i)} style={{
+                {/* Blob previews are local admin-only images and do not benefit from Next.js optimization. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={`New review image ${i + 1}`} style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 4 }} />
+                <button type="button" aria-label={`Remove new review image ${i + 1}`} onClick={() => removeNewImage(i)} style={{
                   position: 'absolute', top: 2, right: 2, background: 'red', color: 'white',
                   border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer',
                   fontSize: 12, lineHeight: '20px', textAlign: 'center', padding: 0

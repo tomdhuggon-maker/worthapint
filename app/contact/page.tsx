@@ -32,7 +32,7 @@ export default function ContactPage() {
       <hr className="divider" />
 
       {status === 'sent' ? (
-        <p className="contact-success">Message sent — thanks! I'll get back to you soon.</p>
+        <p className="contact-success">Message sent — thanks! I’ll get back to you soon.</p>
       ) : (
         <form className="contact-form" onSubmit={handleSubmit}>
           <div className="form-field">
