@@ -9,15 +9,20 @@ export default function ContactPage() {
     e.preventDefault()
     setStatus('sending')
     const form = e.currentTarget
-    const res = await fetch('https://formspree.io/f/xkoaqnjk', {
-      method: 'POST',
-      body: new FormData(form),
-      headers: { Accept: 'application/json' },
-    })
-    if (res.ok) {
-      setStatus('sent')
+
+    try {
+      const res = await fetch('https://formspree.io/f/xkoaqnjk', {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { Accept: 'application/json' },
+      })
+
+      if (!res.ok) throw new Error(`Form submission failed with status ${res.status}`)
+
       form.reset()
-    } else {
+      setStatus('sent')
+    } catch (error) {
+      console.error('Contact form submission failed', error)
       setStatus('error')
     }
   }

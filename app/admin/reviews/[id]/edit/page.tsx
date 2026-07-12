@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
+import { storagePath, validateReviewImages } from '@/lib/review-images'
 
 export default function EditReview() {
   const router = useRouter()
@@ -19,6 +20,7 @@ export default function EditReview() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const previewUrls = useRef(new Set<string>())
 
   useEffect(() => {
     async function load() {
@@ -46,39 +48,88 @@ export default function EditReview() {
     load()
   }, [id, supabase])
 
+  useEffect(() => {
+    const urls = previewUrls.current
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [])
+
   const set = (field: string) => (
     e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement | HTMLInputElement>
   ) => setForm(f => ({ ...f, [field]: e.target.value }))
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
+    const validationError = validateReviewImages(
+      [...newImages, ...files],
+      existingImages.length,
+    )
+    if (validationError) {
+      setError(validationError)
+      e.target.value = ''
+      return
+    }
+
+    setError('')
     setNewImages(prev => [...prev, ...files])
-    setPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))])
+    const newPreviews = files.map(file => URL.createObjectURL(file))
+    newPreviews.forEach(url => previewUrls.current.add(url))
+    setPreviews(prev => [...prev, ...newPreviews])
+    e.target.value = ''
   }
 
   function removeNewImage(index: number) {
+    const url = previews[index]
+    if (url) {
+      URL.revokeObjectURL(url)
+      previewUrls.current.delete(url)
+    }
     setNewImages(prev => prev.filter((_, i) => i !== index))
     setPreviews(prev => prev.filter((_, i) => i !== index))
   }
 
   async function removeExistingImage(imageId: number, url: string) {
     const path = url.split('/review-images/')[1]
-    await supabase.storage.from('review-images').remove([path])
-    await supabase.from('review_images').delete().eq('id', imageId)
+    if (!path) {
+      setError('Could not determine the stored image path.')
+      return
+    }
+
+    setError('')
+    const { error: databaseError } = await supabase.from('review_images').delete().eq('id', imageId)
+    if (databaseError) {
+      console.error('Could not delete image record', databaseError)
+      setError('Could not remove the image. Please try again.')
+      return
+    }
+
     setExistingImages(prev => prev.filter(img => img.id !== imageId))
+    const { error: storageError } = await supabase.storage.from('review-images').remove([path])
+    if (storageError) {
+      console.error('Image record removed but storage cleanup failed', storageError)
+      setError('Image removed, but its stored file could not be cleaned up.')
+    }
   }
 
   async function uploadNewImages(reviewId: number) {
-    const urls: string[] = []
-    for (const file of newImages) {
-      const ext = file.name.split('.').pop()
-      const path = `${reviewId}/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('review-images').upload(path, file)
-      if (error) throw error
-      const { data } = supabase.storage.from('review-images').getPublicUrl(path)
-      urls.push(data.publicUrl)
+    const uploaded: { path: string; url: string }[] = []
+
+    try {
+      for (const file of newImages) {
+        const path = storagePath(reviewId, file)
+        const { error } = await supabase.storage
+          .from('review-images')
+          .upload(path, file, { cacheControl: '3600', contentType: file.type, upsert: false })
+        if (error) throw error
+        const { data } = supabase.storage.from('review-images').getPublicUrl(path)
+        uploaded.push({ path, url: data.publicUrl })
+      }
+      return uploaded
+    } catch (error) {
+      if (uploaded.length > 0) {
+        await supabase.storage.from('review-images').remove(uploaded.map(image => image.path))
+      }
+      throw error
     }
-    return urls
   }
 
   async function handleSave() {
@@ -103,11 +154,15 @@ export default function EditReview() {
 
     if (newImages.length > 0) {
       try {
-        const urls = await uploadNewImages(Number(id))
+        const uploaded = await uploadNewImages(Number(id))
         const position = existingImages.length
-        await supabase.from('review_images').insert(
-          urls.map((url, i) => ({ review_id: Number(id), url, position: position + i }))
+        const { error: imageError } = await supabase.from('review_images').insert(
+          uploaded.map((image, i) => ({ review_id: Number(id), url: image.url, position: position + i }))
         )
+        if (imageError) {
+          await supabase.storage.from('review-images').remove(uploaded.map(image => image.path))
+          throw imageError
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error'
         setError('Review saved but image upload failed: ' + message)

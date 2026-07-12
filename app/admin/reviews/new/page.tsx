@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
+import { storagePath, validateReviewImages } from '@/lib/review-images'
 
 export default function NewReview() {
   const router = useRouter()
@@ -16,6 +17,7 @@ export default function NewReview() {
   const [previews, setPreviews] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const previewUrls = useRef(new Set<string>())
 
   useEffect(() => {
     supabase.from('pubs').select('id, name').order('name').then(({ data }) => {
@@ -23,35 +25,62 @@ export default function NewReview() {
     })
   }, [supabase])
 
+  useEffect(() => {
+    const urls = previewUrls.current
+    return () => urls.forEach(url => URL.revokeObjectURL(url))
+  }, [])
+
   const set = (field: string) => (
     e: React.ChangeEvent<HTMLSelectElement | HTMLTextAreaElement | HTMLInputElement>
   ) => setForm(f => ({ ...f, [field]: e.target.value }))
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
+    const validationError = validateReviewImages([...images, ...files])
+    if (validationError) {
+      setError(validationError)
+      e.target.value = ''
+      return
+    }
+
+    setError('')
     setImages(prev => [...prev, ...files])
     const newPreviews = files.map(f => URL.createObjectURL(f))
+    newPreviews.forEach(url => previewUrls.current.add(url))
     setPreviews(prev => [...prev, ...newPreviews])
+    e.target.value = ''
   }
 
   function removeImage(index: number) {
+    const url = previews[index]
+    if (url) {
+      URL.revokeObjectURL(url)
+      previewUrls.current.delete(url)
+    }
     setImages(prev => prev.filter((_, i) => i !== index))
     setPreviews(prev => prev.filter((_, i) => i !== index))
   }
 
   async function uploadImages(reviewId: number) {
-    const urls: string[] = []
-    for (const file of images) {
-      const ext = file.name.split('.').pop()
-      const path = `${reviewId}/${Date.now()}.${ext}`
-      const { error } = await supabase.storage
-        .from('review-images')
-        .upload(path, file)
-      if (error) throw error
-      const { data } = supabase.storage.from('review-images').getPublicUrl(path)
-      urls.push(data.publicUrl)
+    const uploaded: { path: string; url: string }[] = []
+
+    try {
+      for (const file of images) {
+        const path = storagePath(reviewId, file)
+        const { error } = await supabase.storage
+          .from('review-images')
+          .upload(path, file, { cacheControl: '3600', contentType: file.type, upsert: false })
+        if (error) throw error
+        const { data } = supabase.storage.from('review-images').getPublicUrl(path)
+        uploaded.push({ path, url: data.publicUrl })
+      }
+      return uploaded
+    } catch (error) {
+      if (uploaded.length > 0) {
+        await supabase.storage.from('review-images').remove(uploaded.map(image => image.path))
+      }
+      throw error
     }
-    return urls
   }
 
   async function handleSubmit() {
@@ -79,10 +108,14 @@ export default function NewReview() {
     // Upload images
     if (images.length > 0) {
       try {
-        const urls = await uploadImages(review.id)
-        await supabase.from('review_images').insert(
-          urls.map((url, position) => ({ review_id: review.id, url, position }))
+        const uploaded = await uploadImages(review.id)
+        const { error: imageError } = await supabase.from('review_images').insert(
+          uploaded.map((image, position) => ({ review_id: review.id, url: image.url, position }))
         )
+        if (imageError) {
+          await supabase.storage.from('review-images').remove(uploaded.map(image => image.path))
+          throw imageError
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error'
         setError('Review saved but image upload failed: ' + message)
