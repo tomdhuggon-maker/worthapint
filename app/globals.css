@@ -258,3 +258,67 @@ a {
   font-size: 14px;
   color: var(--color-accent);
 }
+
+/* Pub map */
+.map-header { margin-bottom: 2rem; }
+.map-shell {
+  position: relative;
+  margin-bottom: 3rem;
+}
+.map-canvas {
+  width: 100%;
+  height: 420px;
+  background: var(--color-border);
+  border: 0.5px solid var(--color-border);
+}
+.map-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  font-size: 14px;
+  text-align: center;
+  color: var(--color-muted);
+  background: color-mix(in srgb, var(--color-page) 92%, transparent);
+}
+.map-status--error { color: var(--color-accent); }
+.map-hint {
+  padding: 0.75rem 0;
+  font-size: 13px;
+  color: var(--color-muted);
+  border-bottom: 0.5px solid var(--color-border);
+}
+.map-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 0.5px solid var(--color-border);
+}
+.map-selection-name { font-size: 15px; font-weight: 500; }
+.map-selection-area { margin-top: 2px; font-size: 12px; color: var(--color-muted); }
+.map-selection-link { flex-shrink: 0; font-size: 13px; color: var(--color-accent); }
+.map-selection-link:hover { text-decoration: underline; }
+.map-config-message {
+  padding: 1rem;
+  margin-bottom: 3rem;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-muted);
+  border: 0.5px solid var(--color-border);
+}
+.map-pub-section { margin-top: 3rem; }
+.map-pub-heading {
+  margin-bottom: 1rem;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 26px;
+  font-weight: 400;
+}
+.map-pub-arrow { color: var(--color-muted); }
+
+@media (max-width: 480px) {
+  .map-canvas { height: 58vh; min-height: 340px; max-height: 460px; }
+  .nav-links { gap: 1rem; }
+}

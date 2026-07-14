@@ -5,6 +5,7 @@
 ## What the site includes
 
 - A public homepage ordered by each pub's latest published review
+- A public map of reviewed pubs using their saved coordinates
 - Individual pub pages with ratings, reviews, photographs, and map links
 - About and contact pages
 - A private admin area for adding pubs and creating or editing reviews
@@ -35,9 +36,12 @@ Create `.env.local` in the project root:
 ```text
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-restricted-local-google-maps-key
+NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=your-google-map-id
 ```
 
 Do not commit `.env.local`. Environment files are excluded by `.gitignore`.
+Use a Google Maps browser key restricted to `http://localhost:3000/*` locally, and a separate production key restricted to the live Worth a Pint domains in Vercel.
 
 ### 3. Start the development site
 
@@ -93,6 +97,7 @@ app/
   pubs/[slug]/           Public pub and review pages
   about/                 About page
   contact/               Contact form
+  map/                   Public map and interactive Google Maps component
   components/            Shared interface components
 lib/
   supabase-*.ts          Browser and server Supabase clients
@@ -116,5 +121,4 @@ Check the Vercel dashboard and wait for the deployment status to become **Ready*
 ## Current roadmap
 
 - Grow the collection of reviewed pubs
-- Add a public map using the coordinates stored for each pub
 - Continue improving the admin experience and automated coverage

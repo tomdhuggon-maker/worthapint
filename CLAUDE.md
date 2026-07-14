@@ -22,7 +22,8 @@ Implemented Features
 
 Homepage listing pubs ordered by most recent review, with avg rating
 Public pub pages (/pubs/[slug]) with reviews, sub-ratings (beer/atmosphere/value), images, and Google Maps link
-Site nav with logo (links home), About, and Contact
+Public map (/map) showing reviewed pubs as interactive pins, with a linked accessible pub list
+Site nav with logo (links home), Map, About, and Contact
 About page with editorial copy
 Contact form via Formspree → Gmail
 Full admin panel: login, dashboard, add pub, add review (multi-image upload), edit review
@@ -35,5 +36,4 @@ None current.
 
 Roadmap
 
-Map page (/map) — Google Maps JavaScript API, all pubs as pins. Coordinates already in DB. Needs NEXT_PUBLIC_GOOGLE_MAPS_API_KEY added to Vercel env vars.
 Grow content — target ~20 pubs to make the map worthwhile.
