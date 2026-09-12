@@ -1,5 +1,13 @@
-export const metadata = {
-  title: 'About — Worth a Pint',
+import type { Metadata } from 'next'
+
+const description =
+  "Why Worth a Pint exists — an editorial guide dedicated to finding and promoting London's independent pubs."
+
+export const metadata: Metadata = {
+  title: 'About',
+  description,
+  alternates: { canonical: '/about' },
+  openGraph: { title: 'About — Worth a Pint', description, url: '/about' },
 }
 
 export default function AboutPage() {

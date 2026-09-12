@@ -6,9 +6,13 @@ import MapCanvas from './MapCanvas'
 
 export const revalidate = 60
 
+const description = 'Explore independent London pubs reviewed by Worth a Pint, plotted on an interactive map.'
+
 export const metadata: Metadata = {
-  title: 'Pub map — Worth a Pint',
-  description: 'Explore independent London pubs reviewed by Worth a Pint.',
+  title: 'Pub map',
+  description,
+  alternates: { canonical: '/map' },
+  openGraph: { title: 'Pub map — Worth a Pint', description, url: '/map' },
 }
 
 export default async function MapPage() {
